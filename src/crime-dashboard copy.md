@@ -1,10 +1,10 @@
 ---
 theme: dashboard
-title: India Police Effectiveness by Year
+title: India Police Effectiveness All
 toc: false
 ---
 
-# India Police Effectiveness by Year
+# India Police Effectiveness All
 
 <!-- Load and transform the data -->
 
@@ -14,14 +14,6 @@ const crimeData = await FileAttachment("data/main_df.csv").csv({ typed: true });
 console.log(crimeData);
 
 // Create year range for filter from 2001-2010 with proper stepping
-const years = [2001, 2010];
-const yearFilter = view(
-    Inputs.range(years, {
-        label: "Select Year",
-        value: years[0],
-        step: 1,
-    })
-);
 
 // Add checkbox for top 5 filter
 const showTop5 = view(
@@ -56,7 +48,7 @@ function filterTop5(data) {
 
 ```js
 // Filter data by selected year and top 5 if needed
-const yearData = filterTop5(crimeData.filter((d) => d.Year === yearFilter));
+const yearData = filterTop5(crimeData);
 // Create a color scale for states
 const color = Plot.scale({
     color: {
@@ -98,21 +90,24 @@ const totalConvictions = d3.sum(yearData, (d) => d.police_personnel_convicted).t
 
 ```js
 function registeredRate(data, { width } = {}) {
-    const filteredData = filterTop5(crimeData.filter((d) => d.Year === yearFilter));
+    const filteredData = filterTop5(crimeData.filter((d) => d.Year));
     const stateRates = d3
         .rollups(
             filteredData,
             (v) => ({
-                rate: d3.sum(v, (d) => d.cases_registered_against_police) / d3.sum(v, (d) => d.police_population),
-                total: d3.sum(v, (d) => d.cases_registered_against_police),
-                police: d3.sum(v, (d) => d.police_population),
+                rate:
+                    (d3.sum(v, (d) => d.police_personnel_convicted) /
+                        d3.sum(v, (d) => d.police_personnel_sent_for_trial)) *
+                    100,
+                convicted: d3.sum(v, (d) => d.police_personnel_convicted),
+                sent_for_trial: d3.sum(v, (d) => d.police_personnel_sent_for_trial),
             }),
             (d) => d.Area_Name
         )
         .sort((a, b) => b[1].rate - a[1].rate);
 
     return Plot.plot({
-        title: "Cases Registered Rate against Police by State (%)",
+        title: "Police Convicted / Sent for Trial by State (%)",
         width,
         height: 500,
         marginLeft: 120,
@@ -124,7 +119,8 @@ function registeredRate(data, { width } = {}) {
                 x: (d) => d[1].rate,
                 fill: "steelblue",
                 tip: true,
-                title: (d) => `${d[0]}\nConvicted: ${d[1].total}\nPolice Force: ${d[1].police.toLocaleString()}`,
+                title: (d) =>
+                    `${d[0]}\nConvicted: ${d[1].convicted}\nSent for Trial: ${d[1].sent_for_trial.toLocaleString()}`,
                 sort: { y: "-x" },
             }),
         ],
@@ -133,7 +129,7 @@ function registeredRate(data, { width } = {}) {
 // Case Disposition Analysis
 
 function caseDisposition(data, { width } = {}) {
-    const filteredData = filterTop5(crimeData.filter((d) => d.Year === yearFilter));
+    const filteredData = filterTop5(crimeData.filter((d) => d.Year));
     const dispositionData = d3.rollups(
         filteredData,
         (v) => ({
