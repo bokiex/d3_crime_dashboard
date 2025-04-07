@@ -4,9 +4,7 @@ title: India Crime Statistics
 toc: false
 ---
 
-## India Overall Dashboard
-
-## India Police Dashboard 🚨
+## India Crime Dashboard
 
 <!-- Load and transform the data -->
 
@@ -61,28 +59,23 @@ const color = Plot.scale({
         unknown: "var(--theme-foreground-muted)",
     },
 });
-const totalCases = d3.sum(yearData, (d) => d.cases_registered_against_police).toLocaleString();
-const totalComplaints = d3.sum(yearData, (d) => d.complaints_received_against_police).toLocaleString();
-const totalArrests = d3.sum(yearData, (d) => d.police_personnel_sent_for_trial).toLocaleString();
-const totalConvictions = d3.sum(yearData, (d) => d.police_personnel_convicted).toLocaleString();
+const totalCases = d3.sum(yearData, (d) => d["TOTAL IPC CRIMES"]).toLocaleString();
+const totalComplaints = d3.sum(yearData, (d) => d.police_population).toLocaleString();
+const totalFirings = d3.sum(yearData, (d) => d.No_of_Firings).toLocaleString();
 ```
 
-<div class="grid grid-cols-4">
+<div class="grid grid-cols-3">
   <div class="card">
-    <h2>Total Cases Against Police</h2>
+    <h2>Total Crime Cases</h2>
     <span class="big">${totalCases}</span>
   </div>
   <div class="card">
-    <h2>Total Complaints Against Police</h2>
+    <h2>Total Police Strength</h2>
     <span class="big">${totalComplaints}</span>
   </div>
-  <div class="card">
-    <h2>Total Police Sent for Trial</h2>
-    <span class="big">${totalArrests}</span>
-  </div>
-  <div class="card">
-    <h2>Total Policemen Convicted</h2>
-    <span class="big">${totalConvictions}</span>
+    <div class="card">
+    <h2>Total Firings</h2>
+    <span class="big">${totalFirings}</span>
   </div>
 </div>
 
@@ -90,13 +83,13 @@ const totalConvictions = d3.sum(yearData, (d) => d.police_personnel_convicted).t
 
 ```js
 function registeredRate(data, { width } = {}) {
-    const filteredData = filterTop5(crimeData);
+    const filteredData = filterTop5(data);
     const stateRates = d3
         .rollups(
             filteredData,
             (v) => ({
-                rate: d3.sum(v, (d) => d.cases_registered_against_police) / d3.sum(v, (d) => d.police_population),
-                total: d3.sum(v, (d) => d.cases_registered_against_police),
+                rate: d3.sum(v, (d) => d["TOTAL IPC CRIMES"]) / d3.sum(v, (d) => d.police_population),
+                total: d3.sum(v, (d) => d["TOTAL IPC CRIMES"]),
                 police: d3.sum(v, (d) => d.police_population),
             }),
             (d) => d.Area_Name
@@ -104,11 +97,11 @@ function registeredRate(data, { width } = {}) {
         .sort((a, b) => b[1].rate - a[1].rate);
 
     return Plot.plot({
-        title: "Cases Registered Rate against Police by State (%)",
+        title: "Crimes Committed",
         width,
         height: 500,
         marginLeft: 120,
-        x: { label: "Conviction Rate (%)" },
+        x: { label: "Number of crimes commited for every 1 policeman" },
         y: { label: null },
         marks: [
             Plot.barX(stateRates, {
@@ -116,73 +109,61 @@ function registeredRate(data, { width } = {}) {
                 x: (d) => d[1].rate,
                 fill: "steelblue",
                 tip: true,
-                title: (d) => `${d[0]}\nConvicted: ${d[1].total}\nPolice Force: ${d[1].police.toLocaleString()}`,
+                title: (d) =>
+                    `${d[0]}\nCrimes Committed: ${d[1].total}\nPolice Strength: ${d[1].police.toLocaleString()}`,
                 sort: { y: "-x" },
             }),
         ],
     });
 }
-// Case Disposition Analysis
-
-function caseDisposition(data, { width } = {}) {
-    const filteredData = filterTop5(crimeData);
-    const dispositionData = d3.rollups(
-        filteredData,
-        (v) => ({
-            sentToTrial: d3.sum(v, (d) => d.police_personnel_sent_for_trial),
-            falseOrWithdrawn: d3.sum(
-                v,
-                (d) =>
-                    d.complaints_or_cases_declared_false_or_unsubstantiated_against_police +
-                    d.police_personnel_cases_withdrawn_or_disposed_of
-            ),
-        }),
-        (d) => d.Area_Name
-    );
+function casualtiesPerShot(data, { width } = {}) {
+    const filteredData = filterTop5(data);
+    const casualtyRates = d3
+        .rollups(
+            filteredData,
+            (v) => {
+                const totalCasualties = d3.sum(v, (d) => d.Civilians_Injured + d.Civilians_Killed);
+                const totalFirings = d3.sum(v, (d) => d.No_of_Firings);
+                return {
+                    rate: totalFirings > 0 ? totalCasualties / totalFirings : 0,
+                    casualties: totalCasualties,
+                    firings: totalFirings,
+                    civiliansKilled: d3.sum(v, (d) => d.Civilians_Killed),
+                    civiliansInjured: d3.sum(v, (d) => d.Civilians_Injured),
+                };
+            },
+            (d) => d.Area_Name
+        )
+        .sort((a, b) => b[1].rate - a[1].rate);
 
     return Plot.plot({
-        title: "Case Disposition Analysis",
+        title: "Casualties per Police Firing",
         width,
         height: 500,
         marginLeft: 120,
-        x: { label: "Number of Cases" },
-        y: { label: null },
-        color: {
-            legend: true,
-            domain: ["Cases Registered", "Cases Withdrawn", "Trial Completed"],
-            range: ["#1f77b4", "#ff7f0e", "#2ca02c"],
+        x: {
+            label: "Casualties per Firing",
+            nice: true,
         },
+        y: { label: null },
         marks: [
-            Plot.barX(dispositionData, {
+            Plot.barX(casualtyRates, {
                 y: (d) => d[0],
-                x: (d) => d[1].sentToTrial,
-                fill: "steelblue",
-                tip: true,
-                title: (d) => `${d[0]}\nSent to Trial: ${d[1].sentToTrial}\nFalse/Withdrawn: ${d[1].falseOrWithdrawn}`,
-                sort: { y: "-x" },
-            }),
-            Plot.barX(dispositionData, {
-                y: (d) => d[0],
-                x: (d) => -d[1].falseOrWithdrawn,
+                x: (d) => d[1].rate,
                 fill: "red",
                 tip: true,
-                title: (d) => `${d[0]}\nSent to Trial: ${d[1].sentToTrial}\nFalse/Withdrawn: ${d[1].falseOrWithdrawn}`,
+                title: (d) =>
+                    `${d[0]}\nCasualties per Firing: ${d[1].rate.toFixed(2)}\n` +
+                    `Total Casualties: ${d[1].casualties}\n` +
+                    `Civilians Killed: ${d[1].civiliansKilled}\n` +
+                    `Civilians Injured: ${d[1].civiliansInjured}\n` +
+                    `Total Firings: ${d[1].firings}`,
+                sort: { y: "-x" },
             }),
         ],
     });
 }
-```
 
-<div class="grid grid-cols-2">
-  <div class="card">
-    ${resize((width) => registeredRate(crimeData, {width}))}
-  </div>
-  <div class="card">
-    ${resize((width) => caseDisposition(crimeData, {width}))}
-  </div>
-</div>
-
-```js
 function crimeTypesOverTime(data, { width } = {}) {
     const filteredData = crimeData;
 
@@ -321,14 +302,137 @@ function crimeTypeDistribution(data, { width } = {}) {
         ],
     });
 }
+
+function crimeAndPoliceTrends(data, { width } = {}) {
+    const filteredData = crimeData;
+
+    // Aggregate data by year
+    const yearlyData = d3
+        .rollups(
+            filteredData,
+            (v) => ({
+                totalCrimes: d3.sum(v, (d) => d["TOTAL IPC CRIMES"]),
+                policeStrength: d3.sum(v, (d) => d.police_population),
+                crimeRate: d3.sum(v, (d) => d["TOTAL IPC CRIMES"]) / d3.sum(v, (d) => d.police_population),
+            }),
+            (d) => d.Year
+        )
+        .map(([year, stats]) => ({
+            Year: year,
+            ...stats,
+        }));
+
+    // Sort by year
+    yearlyData.sort((a, b) => a.Year - b.Year);
+
+    return Plot.plot({
+        title: "Crime Cases and Police Strength Trends",
+        width,
+        height: 500,
+        marginTop: 30,
+        marginLeft: 60,
+        marginRight: 60,
+        x: {
+            label: "Year",
+            type: "linear",
+            nice: true,
+        },
+        y: {
+            label: "Number of Crime Cases",
+            type: "linear",
+            nice: true,
+            grid: true,
+        },
+        y2: {
+            label: "Police Strength",
+            type: "linear",
+            nice: true,
+            grid: false,
+        },
+        color: {
+            legend: true,
+            domain: ["Crime Cases", "Police Strength"],
+            range: ["#e41a1c", "#377eb8"],
+        },
+        marks: [
+            // Line for crime cases
+            Plot.line(yearlyData, {
+                x: "Year",
+                y: "totalCrimes",
+                stroke: "#e41a1c",
+                strokeWidth: 2,
+                tip: true,
+                title: (d) =>
+                    `Year: ${
+                        d.Year
+                    }\nCrime Cases: ${d.totalCrimes.toLocaleString()}\nPolice Strength: ${d.policeStrength.toLocaleString()}\nCrime Rate: ${d.crimeRate.toFixed(
+                        2
+                    )} per police officer`,
+            }),
+            // Dots for crime cases
+            Plot.dot(yearlyData, {
+                x: "Year",
+                y: "totalCrimes",
+                fill: "#e41a1c",
+                r: 4,
+                tip: true,
+                title: (d) =>
+                    `Year: ${
+                        d.Year
+                    }\nCrime Cases: ${d.totalCrimes.toLocaleString()}\nPolice Strength: ${d.policeStrength.toLocaleString()}\nCrime Rate: ${d.crimeRate.toFixed(
+                        2
+                    )} per police officer`,
+            }),
+            // Line for police strength
+            Plot.line(yearlyData, {
+                x: "Year",
+                y: "policeStrength",
+                stroke: "#377eb8",
+                strokeWidth: 2,
+                y2: true,
+                tip: true,
+                title: (d) =>
+                    `Year: ${
+                        d.Year
+                    }\nCrime Cases: ${d.totalCrimes.toLocaleString()}\nPolice Strength: ${d.policeStrength.toLocaleString()}\nCrime Rate: ${d.crimeRate.toFixed(
+                        2
+                    )} per police officer`,
+            }),
+            // Dots for police strength
+            Plot.dot(yearlyData, {
+                x: "Year",
+                y: "policeStrength",
+                fill: "#377eb8",
+                r: 4,
+                y2: true,
+                tip: true,
+                title: (d) =>
+                    `Year: ${
+                        d.Year
+                    }\nCrime Cases: ${d.totalCrimes.toLocaleString()}\nPolice Strength: ${d.policeStrength.toLocaleString()}\nCrime Rate: ${d.crimeRate.toFixed(
+                        2
+                    )} per police officer`,
+            }),
+        ],
+    });
+}
 ```
+
+<div class="grid grid-cols-2">
+  <div class="card">
+    ${resize((width) => registeredRate(crimeData, {width}))}
+  </div>
+  
+  <div class="card">
+    ${resize((width) => casualtiesPerShot(crimeData, {width}))}
+  </div>
+</div>
 
 <div class="grid grid-cols-2">
   <div class="card">
     ${resize((width) => crimeTypesOverTime(crimeData, {width}))}
   </div>
-
-  <div class="card">
-    ${resize((width) => crimeTypeDistribution(crimeData, {width}))}
+    <div class="card">
+    ${resize((width) => crimeAndPoliceTrends(crimeData, {width}))}
   </div>
 </div>

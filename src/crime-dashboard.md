@@ -157,8 +157,8 @@ function caseDisposition(data, { width } = {}) {
         y: { label: null },
         color: {
             legend: true,
-            domain: ["Cases Registered", "Cases Withdrawn", "Trial Completed"],
-            range: ["#1f77b4", "#ff7f0e", "#2ca02c"],
+            domain: ["Cases Registered", "Cases Withdrawn"],
+            range: ["#1f77b4", "#ff7f0e"],
         },
         marks: [
             Plot.barX(dispositionData, {
@@ -196,7 +196,7 @@ function caseDisposition(data, { width } = {}) {
 function trendsOverTime(data, { width } = {}) {
     const filteredData = showTop5 ? filterTop5(crimeData) : crimeData;
     return Plot.plot({
-        title: "Police Cases and Convictions Over Time",
+        title: "Police Cases Registered Over Time",
         width,
         height: 400,
         marginTop: 30,
